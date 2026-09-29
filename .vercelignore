@@ -1,0 +1,9 @@
+# Keep the deployment lean — these are dev-only artefacts.
+_uitest.html
+
+# Git internals
+.git
+.gitignore
+
+# Docs
+README.md
