@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-accent="blue" data-density="comfortable">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Dynamic List — a dark dashboard to-do app with calendar, activity and notes."
+    />
+    <title>Dynamic List — Make Things Simple</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <!-- ============ Sidebar (G.Take style) ============ -->
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark" role="img" aria-label="Dynamic List logo">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle class="brand-ring" cx="12" cy="12" r="10.5"></circle>
+              <path class="brand-tick" d="M6.5 12.4 L10.6 16.4 L17.5 8.4"></path>
+            </svg>
+          </span>
+          <span class="brand-name">Dynamic<span>List</span></span>
+        </div>
+
+        <nav class="side-nav" id="sideNav">
+          <p class="side-label">Menu</p>
+          <button class="side-link active" data-view="dashboard">
+            <span class="ico">⌂</span> Dashboard
+          </button>
+          <button class="side-link" data-view="tasks">
+            <span class="ico">✓</span> Tasks
+            <span class="badge" data-badge="pending">0</span>
+          </button>
+          <button class="side-link" data-view="calendar">
+            <span class="ico">▦</span> Calendar
+          </button>
+          <button class="side-link" data-view="activity">
+            <span class="ico">▤</span> Activity
+            <span class="badge" data-badge="completed">0</span>
+          </button>
+          <button class="side-link" data-view="notes">
+            <span class="ico">✎</span> Notes
+            <span class="badge" data-badge="notes">0</span>
+          </button>
+          <button class="side-link" data-view="files">
+            <span class="ico">📎</span> My files
+            <span class="badge" data-badge="files">0</span>
+          </button>
+          <button class="side-link" data-view="settings">
+            <span class="ico">⚙</span> Settings
+          </button>
+        </nav>
+
+        <div class="side-foot">
+          <button class="side-link" data-view="settings">
+            <span class="ico">⚙</span> Settings
+          </button>
+          <button class="side-link" id="logoutBtn">
+            <span class="ico">⏻</span> Log out
+          </button>
+        </div>
+      </aside>
+
+      <!-- ============ Main ============ -->
+      <div class="main">
+        <header class="topbar">
+          <div class="crumbs">
+            <span>Home</span>
+            <span class="sep">/</span>
+            <strong id="crumbView">Dashboard</strong>
+            <span class="sep">/</span>
+            <button id="crumbDate" title="Jump to today">Today</button>
+          </div>
+
+          <div class="topbar-actions">
+            <label class="search-box">
+              <span aria-hidden="true">⌕</span>
+              <input
+                type="search"
+                id="searchInput"
+                placeholder="Search tasks  ( / )"
+                aria-label="Search tasks"
+                autocomplete="off"
+              />
+            </label>
+
+            <button class="icon-btn" id="bellBtn" title="Reminders" aria-expanded="false">
+              <span aria-hidden="true">🔔</span>
+              <span class="dot hidden" id="bellDot"></span>
+            </button>
+
+            <span class="avatar" title="Precious Olaleye">PO</span>
+          </div>
+        </header>
+
+        <div class="hero-row">
+          <div>
+            <h1>Make Things <em>Simple!</em></h1>
+            <p>
+              Management and planning in a simple and attractive style — add a
+              task, set a priority, drag it around, and watch today's progress
+              climb. Everything is saved in your browser.
+            </p>
+          </div>
+          <button class="btn primary push-right" id="newTaskBtn">
+            <span aria-hidden="true">＋</span> New task
+          </button>
+        </div>
+
+        <!-- ============ Dashboard view ============ -->
+        <section class="view" data-view-panel="dashboard">
+          <div class="stats">
+            <div class="stat-card accent">
+              <span>Total tasks</span>
+              <strong id="statTotal">0</strong>
+              <small id="statTotalSub">Nothing yet</small>
+            </div>
+            <div class="stat-card good">
+              <span>Completed</span>
+              <strong id="statDone">0</strong>
+              <small id="statDoneSub">0% of all tasks</small>
+            </div>
+            <div class="stat-card warn">
+              <span>Pending</span>
+              <strong id="statPending">0</strong>
+              <small id="statPendingSub">Due today: 0</small>
+            </div>
+            <div class="stat-card bad">
+              <span>Overdue</span>
+              <strong id="statOverdue">0</strong>
+              <small id="statOverdueSub">Critical: 0</small>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <div class="chips" id="chipRow">
+              <button class="chip plain active" data-chip="all">All</button>
+              <button class="chip" data-chip="high" style="--chip-dot: var(--red)">High</button>
+              <button class="chip" data-chip="medium" style="--chip-dot: var(--amber)">Medium</button>
+              <button class="chip" data-chip="low" style="--chip-dot: var(--cyan)">Low</button>
+              <button class="chip" data-chip="difficult" style="--chip-dot: var(--violet)">Difficult</button>
+              <button class="chip" data-chip="moderate" style="--chip-dot: var(--cyan)">Moderate</button>
+              <button class="chip" data-chip="easy" style="--chip-dot: var(--green)">Easy</button>
+            </div>
+            <label class="push-right">
+              <select class="select" id="catFilter" aria-label="Filter by category">
+                <option value="all">All categories</option>
+                <option value="Work">Work</option>
+                <option value="Personal">Personal</option>
+                <option value="Study">Study</option>
+                <option value="Misc">Misc</option>
+              </select>
+            </label>
+            <label>
+              <select class="select" id="sortSelect" aria-label="Sort tasks">
+                <option value="manual">Sort: My order</option>
+                <option value="due">Sort: Due date</option>
+                <option value="priority">Sort: Priority</option>
+                <option value="created">Sort: Newest</option>
+                <option value="az">Sort: A → Z</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="board">
+            <div class="col-main">
+              <!-- To-Do panel -->
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>To-Do</h2>
+                  <span class="count" id="taskCount">0 tasks</span>
+                  <div class="tabs push-right" id="taskTabs">
+                    <button class="tab active" data-tab="inbox">Inbox</button>
+                    <button class="tab" data-tab="today">Today</button>
+                    <button class="tab" data-tab="upcoming">Upcoming</button>
+                    <button class="tab" data-tab="overdue">Overdue</button>
+                    <button class="tab" data-tab="completed">Completed</button>
+                  </div>
+                </div>
+
+                <form class="add-form" id="addForm" autocomplete="off">
+                  <input
+                    type="text"
+                    id="quickInput"
+                    placeholder="Add a task and press Enter  ( n )"
+                    aria-label="New task title"
+                  />
+                  <select class="select" id="quickPriority" aria-label="Priority">
+                    <option value="high">High</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                  <select class="select" id="quickCategory" aria-label="Category">
+                    <option value="Work">Work</option>
+                    <option value="Personal">Personal</option>
+                    <option value="Study">Study</option>
+                    <option value="Misc" selected>Misc</option>
+                  </select>
+                  <button class="btn primary small" type="submit">Add task</button>
+                </form>
+
+                <ul class="task-list" data-task-list></ul>
+                <div class="empty hidden" data-empty-state></div>
+              </div>
+
+              <!-- Completed panel -->
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>Completed Tasks</h2>
+                  <span class="count" id="doneCount">0 done</span>
+                  <div class="tabs push-right" id="doneTabs">
+                    <button class="tab active" data-done-tab="all">All</button>
+                    <button class="tab" data-done-tab="today">Today</button>
+                    <button class="tab" data-done-tab="week">This week</button>
+                    <button class="tab" data-done-tab="month">This month</button>
+                  </div>
+                  <button class="btn small" id="clearDoneBtn" type="button">
+                    Clear
+                  </button>
+                </div>
+                <div class="done-list" data-done-list></div>
+                <div class="empty hidden" data-empty-state></div>
+              </div>
+            </div>
+
+            <aside class="col-side">
+              <!-- Clock + today's progress -->
+              <div class="widget">
+                <div class="widget-head">
+                  <h2><span aria-hidden="true">🕒</span> Clock</h2>
+                  <span class="spacer"></span>
+                  <span class="count" id="dayName">—</span>
+                </div>
+                <div class="clock-row">
+                  <div class="clock" id="clock" aria-live="off">
+                    <b id="clockH">00</b><i>:</i><b id="clockM">00</b><i>:</i>
+                    <b id="clockS">00</b>
+                  </div>
+                  <div class="ring" id="todayRing">
+                    <svg viewBox="0 0 100 100" aria-hidden="true">
+                      <circle class="track" cx="50" cy="50" r="42"></circle>
+                      <circle class="value" id="todayRingValue" cx="50" cy="50" r="42"></circle>
+                    </svg>
+                    <b id="todayPct">0%</b>
+                  </div>
+                </div>
+                <div class="ring-label">
+                  <span>Today's progress</span>
+                  <span class="trend up" id="trendText">+0% vs yesterday</span>
+                </div>
+              </div>
+
+              <!-- Calendar -->
+              <div class="widget">
+                <div class="widget-head">
+                  <h2><span aria-hidden="true">▦</span> Calendar</h2>
+                  <span class="spacer"></span>
+                  <button class="mini-btn" id="goTodayBtn" type="button" title="Back to today">
+                    ◎
+                  </button>
+                </div>
+                <div class="cal-head">
+                  <b id="calTitle">—</b>
+                  <div class="cal-nav">
+                    <button type="button" data-cal-nav="-1" aria-label="Previous month">‹</button>
+                    <button type="button" data-cal-nav="1" aria-label="Next month">›</button>
+                  </div>
+                </div>
+                <div class="cal-grid" id="calGrid"></div>
+                <p class="ring-label" id="calHint">Click a day to filter your tasks.</p>
+                <div class="cal-foot">
+                  <div>
+                    <span>Month ends in</span>
+                    <div class="countdown" id="monthCountdown">
+                      <b>00</b><b>00</b><b>00</b><b>00</b>
+                    </div>
+                  </div>
+                  <div>
+                    <span>Month progress</span>
+                    <div class="progress-meta"><b id="monthPct">0%</b></div>
+                    <div class="progress-bar" style="width: 92px"><i id="monthBar"></i></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Today note -->
+              <div class="widget">
+                <div class="widget-head">
+                  <h2><span aria-hidden="true">📝</span> Today note</h2>
+                  <span class="spacer"></span>
+                  <button class="mini-btn" id="noteSaveBtn" type="button" title="Save note">✓</button>
+                </div>
+                <div
+                  class="note-box"
+                  id="noteBox"
+                  contenteditable="true"
+                  role="textbox"
+                  aria-multiline="true"
+                  data-placeholder="Going to the company and planning meetings for the week ahead…"
+                ></div>
+                <div class="note-foot">
+                  <span id="noteTime">Not saved yet</span>
+                  <span class="spacer"></span>
+                  <button class="btn small ghost" id="noteClearBtn" type="button">Clear</button>
+                </div>
+              </div>
+
+              <!-- My files -->
+              <div class="widget">
+                <div class="widget-head">
+                  <h2><span aria-hidden="true">📎</span> My files</h2>
+                  <span class="spacer"></span>
+                  <button class="mini-btn" id="pickFileBtn" type="button" title="Add file">＋</button>
+                </div>
+                <input type="file" id="fileInput" class="hidden" multiple />
+                <div class="dropzone" id="fileDrop" role="button" tabindex="0">
+                  <span class="big" aria-hidden="true">☁</span>
+                  <span>Drop files here or</span>
+                  <span class="btn small browse">📎 Choose file</span>
+                  <small id="fileHint">Files under 600 KB stay in your browser</small>
+                </div>
+                <div class="stack" id="fileList" style="margin-top: 12px"></div>
+                <div class="format-row">
+                  More than 20 formats:
+                  <span title="Word">W</span>
+                  <span title="Excel">X</span>
+                  <span title="PowerPoint">P</span>
+                  <span title="Photoshop">Ps</span>
+                  <span title="Notion">N</span>
+                </div>
+              </div>
+
+              <!-- Activity -->
+              <div class="widget">
+                <div class="widget-head">
+                  <h2><span aria-hidden="true">📈</span> Activity</h2>
+                  <span class="spacer"></span>
+                  <button class="btn small" id="reportBtn" type="button">Get the report</button>
+                </div>
+                <div class="activity-top">
+                  <div>
+                    <small>Tasks completed</small>
+                    <b id="activityDone">0</b>
+                  </div>
+                  <div>
+                    <small>Streak</small>
+                    <b id="activityStreak">0d</b>
+                  </div>
+                </div>
+                <div class="bar-chart" id="miniChart"></div>
+                <div class="progress-meta">
+                  <span>Completion rate</span>
+                  <b id="rateText">0%</b>
+                </div>
+                <div class="progress-bar"><i id="rateBar" style="width: 0%"></i></div>
+              </div>
+
+            </aside>
+
+          </div>
+        </section>
+
+        <!-- ============ Tasks view ============ -->
+        <section class="view hidden" data-view-panel="tasks">
+          <div class="two-col">
+            <div class="panel">
+              <div class="panel-head">
+                <h2>All tasks</h2>
+                <span class="count" id="tasksViewCount">0 tasks</span>
+                <div class="tabs push-right">
+                  <button class="tab active" data-tab="inbox">Inbox</button>
+                  <button class="tab" data-tab="today">Today</button>
+                  <button class="tab" data-tab="upcoming">Upcoming</button>
+                  <button class="tab" data-tab="overdue">Overdue</button>
+                  <button class="tab" data-tab="completed">Completed</button>
+                </div>
+              </div>
+              <ul class="task-list" data-task-list></ul>
+              <div class="empty hidden" data-empty-state></div>
+            </div>
+
+            <div class="stack">
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>Breakdown</h2>
+                  <span class="count" id="breakdownCount">0 tasks</span>
+                </div>
+                <div class="stack" id="breakdown"></div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>Up next</h2>
+                  <span class="count" id="upNextCount">0</span>
+                </div>
+                <div class="done-list" id="upNext"></div>
+                <div class="empty hidden" id="upNextEmpty"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ Calendar view ============ -->
+        <section class="view hidden" data-view-panel="calendar">
+          <div class="panel">
+            <div class="month-head">
+              <h2 id="monthTitle">—</h2>
+              <div class="cal-nav">
+                <button type="button" data-cal-nav="-1" aria-label="Previous month">‹</button>
+                <button type="button" data-cal-nav="1" aria-label="Next month">›</button>
+                <button type="button" data-cal-nav="0" aria-label="Current month" style="width: auto; padding: 0 8px">
+                  Today
+                </button>
+              </div>
+              <span class="count push-right" id="monthTaskCount">0 tasks this month</span>
+            </div>
+            <div class="month-grid" id="monthGrid"></div>
+          </div>
+
+          <div class="two-col">
+            <div class="panel">
+              <div class="panel-head">
+                <h2 id="dayPanelTitle">Pick a day</h2>
+                <span class="count" id="dayPanelCount">0 tasks</span>
+                <button class="btn small primary push-right" id="dayAddBtn" type="button">
+                  ＋ Add on this day
+                </button>
+              </div>
+              <ul class="task-list" data-day-list></ul>
+              <div class="empty" data-day-empty></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <h2>Next 7 days</h2>
+                <span class="count" id="weekCount">0 tasks</span>
+              </div>
+              <div class="done-list" id="weekList"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ Activity view ============ -->
+        <section class="view hidden" data-view-panel="activity">
+          <div class="stats">
+            <div class="stat-card good">
+              <span>Done this week</span>
+              <strong id="actWeek">0</strong>
+              <small id="actWeekSub">last 7 days</small>
+            </div>
+            <div class="stat-card accent">
+              <span>Done this month</span>
+              <strong id="actMonth">0</strong>
+              <small id="actMonthSub">this calendar month</small>
+            </div>
+            <div class="stat-card">
+              <span>Average / day</span>
+              <strong id="actAvg">0</strong>
+              <small>last 30 days</small>
+            </div>
+            <div class="stat-card warn">
+              <span>Focus streak</span>
+              <strong id="actStreak">0d</strong>
+              <small id="actStreakSub">days with a completed task</small>
+            </div>
+          </div>
+
+          <div class="two-col">
+            <div class="panel">
+              <div class="panel-head">
+                <h2>Completed per month</h2>
+                <span class="count" id="bigChartCount">0 finished</span>
+              </div>
+              <div class="bar-chart" id="bigChart" style="height: 150px"></div>
+              <div class="progress-meta">
+                <span>Overall completion rate</span>
+                <b id="bigRate">0%</b>
+              </div>
+              <div class="progress-bar"><i id="bigRateBar" style="width: 0%"></i></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <h2>Report</h2>
+                <div class="push-right" style="display: flex; gap: 8px">
+                  <button class="btn small" id="copyReportBtn" type="button">Copy</button>
+                  <button class="btn small primary" id="downloadReportBtn" type="button">
+                    Download
+                  </button>
+                </div>
+              </div>
+              <pre class="report" id="reportOut">—</pre>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ Notes view ============ -->
+        <section class="view hidden" data-view-panel="notes">
+          <div class="two-col">
+            <div class="panel">
+              <div class="panel-head">
+                <h2>New note</h2>
+              </div>
+              <form id="noteForm" autocomplete="off">
+                <label class="field">
+                  <span>Title</span>
+                  <input type="text" id="noteTitle" placeholder="Week plan" />
+                </label>
+                <label class="field">
+                  <span>Body</span>
+                  <textarea
+                    id="noteBody"
+                    placeholder="Add the details you want to remember…"
+                  ></textarea>
+                </label>
+                <button class="btn primary" type="submit">Save note</button>
+              </form>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <h2>Saved notes</h2>
+                <span class="count" id="notesCount">0 notes</span>
+                <input
+                  class="select push-right"
+                  type="search"
+                  id="noteSearch"
+                  placeholder="Search notes"
+                  aria-label="Search notes"
+                />
+              </div>
+              <div class="stack" id="notesList"></div>
+              <div class="empty hidden" id="notesEmpty"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ Files view ============ -->
+        <section class="view hidden" data-view-panel="files">
+          <div class="panel">
+            <div class="panel-head">
+              <h2>My files</h2>
+              <span class="count" id="filesCount">0 files</span>
+              <button class="btn primary small push-right" id="pickFileBtn2" type="button">
+                ＋ Add file
+              </button>
+            </div>
+            <div
+              class="dropzone"
+              id="fileDrop2"
+              role="button"
+              tabindex="0"
+              style="min-height: 130px"
+            >
+              <span class="big" aria-hidden="true">☁</span>
+              <span>Drop files anywhere on this card or</span>
+              <span class="btn small browse">📎 Choose file</span>
+              <small id="fileHint2">Files under 600 KB are stored in your browser</small>
+            </div>
+            <div class="stack" id="filesViewList" style="margin-top: 14px"></div>
+            <div class="empty hidden" id="filesEmpty"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Attach a file to a task</h2>
+            </div>
+            <div class="field-row">
+              <label class="field">
+                <span>Task</span>
+                <select id="attachTaskSelect"></select>
+              </label>
+              <label class="field">
+                <span>File</span>
+                <span class="file-picker">
+                  <input type="file" id="attachFileInput" />
+                  <span class="btn small browse">📎 Choose file</span>
+                  <span class="file-picker-name" id="attachFileName">No file chosen</span>
+                </span>
+              </label>
+            </div>
+            <button class="btn primary" id="attachBtn" type="button">Attach file</button>
+          </div>
+        </section>
+
+        <!-- ============ Settings view ============ -->
+        <section class="view hidden" data-view-panel="settings">
+          <div class="two-col">
+            <div class="panel">
+              <div class="panel-head">
+                <h2>Appearance</h2>
+              </div>
+
+              <div class="setting-row">
+                <div>
+                  <span class="label">Dark theme</span>
+                  <span class="hint">Matches the dashboard mock-ups in this project folder</span>
+                </div>
+                <button class="switch on spacer" id="themeSwitch" type="button" aria-pressed="true">
+                  <i></i>
+                </button>
+              </div>
+
+              <div class="setting-row">
+                <div>
+                  <span class="label">Accent colour</span>
+                  <span class="hint">Buttons, rings and progress bars</span>
+                </div>
+                <div class="swatches spacer" id="accentSwatches">
+                  <button class="swatch blue active" data-accent="blue" title="Blue"></button>
+                  <button class="swatch violet" data-accent="violet" title="Violet"></button>
+                  <button class="swatch emerald" data-accent="emerald" title="Emerald"></button>
+                  <button class="swatch sunset" data-accent="sunset" title="Sunset"></button>
+                </div>
+              </div>
+
+              <div class="setting-row">
+                <div>
+                  <span class="label">Compact density</span>
+                  <span class="hint">Tighter spacing for smaller screens</span>
+                </div>
+                <button class="switch spacer" id="densitySwitch" type="button" aria-pressed="false">
+                  <i></i>
+                </button>
+              </div>
+
+              <div class="setting-row">
+                <div>
+                  <span class="label">Storage used</span>
+                  <span class="hint" id="storageHint">Everything is saved in this browser</span>
+                </div>
+                <b class="spacer" id="storageSize">0 KB</b>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <h2>Data</h2>
+              </div>
+              <div class="setting-row">
+                <div>
+                  <span class="label">Export</span>
+                  <span class="hint">Download tasks, notes and settings as JSON</span>
+                </div>
+                <button class="btn small spacer" id="exportBtn" type="button">Export</button>
+              </div>
+              <div class="setting-row">
+                <div>
+                  <span class="label">Import</span>
+                  <span class="hint">Restore from a previous export</span>
+                </div>
+                <label class="btn small spacer">
+                  Import
+                  <input type="file" id="importInput" accept="application/json" class="hidden" />
+                </label>
+              </div>
+              <div class="setting-row">
+                <div>
+                  <span class="label">Reset everything</span>
+                  <span class="hint">Deletes all tasks, notes and files</span>
+                </div>
+                <button class="btn small danger spacer" id="resetBtn" type="button">Reset</button>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <h2>Keyboard shortcuts</h2>
+              </div>
+              <div class="kbd-list">
+                <div><span class="kbd">N</span> New task</div>
+                <div><span class="kbd">/</span> Focus search</div>
+                <div><span class="kbd">Enter</span> Add the quick task</div>
+                <div><span class="kbd">Esc</span> Close dialog / clear filters</div>
+                <div><span class="kbd">1</span> … <span class="kbd">7</span> Switch views</div>
+                <div><span class="kbd">Space</span> Toggle the focused checkbox</div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <h2>About</h2>
+              </div>
+              <p class="ring-label">
+                Dynamic List — influenced by “Nice Layout.jpg” (the Ultimate To-Do Notion
+                template) and “transparent design.png” (the G.Take dashboard) in this project
+                folder. Plain HTML, CSS and JavaScript with localStorage persistence — no
+                frameworks, no build step.
+              </p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- ============ Task modal ============ -->
+    <div class="modal" id="taskModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2 id="modalTitle">New task</h2>
+          <button class="icon-btn" id="modalCloseBtn" type="button" aria-label="Close">✕</button>
+        </div>
+
+        <form id="taskForm" autocomplete="off">
+          <label class="field">
+            <span>Title</span>
+            <input type="text" id="fTitle" required placeholder="Design a new landing page" />
+          </label>
+
+          <label class="field">
+            <span>Description</span>
+            <textarea
+              id="fNotes"
+              placeholder="Create a responsive design system for landing pages and projects…"
+            ></textarea>
+          </label>
+
+          <div class="field-row">
+            <label class="field">
+              <span>Priority</span>
+              <select id="fPriority">
+                <option value="high">High</option>
+                <option value="medium" selected>Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Difficulty</span>
+              <select id="fDifficulty">
+                <option value="difficult">Difficult</option>
+                <option value="moderate" selected>Moderate</option>
+                <option value="easy">Easy</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Category</span>
+              <select id="fCategory">
+                <option value="Work">Work</option>
+                <option value="Personal">Personal</option>
+                <option value="Study">Study</option>
+                <option value="Misc" selected>Misc</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="field-row">
+            <label class="field">
+              <span>Due date</span>
+              <input type="date" id="fDue" />
+            </label>
+            <label class="field">
+              <span>Time</span>
+              <input type="time" id="fTime" />
+            </label>
+          </div>
+
+          <div class="modal-foot">
+            <button class="btn danger hidden" id="modalDeleteBtn" type="button">Delete</button>
+            <span class="spacer"></span>
+            <button class="btn ghost" id="modalCancelBtn" type="button">Cancel</button>
+            <button class="btn primary" type="submit" id="modalSaveBtn">Save task</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ============ Reminder popover ============ -->
+    <div class="popover hidden" id="bellPanel" role="dialog" aria-label="Reminders">
+      <h3>Reminders</h3>
+      <div id="bellItems"></div>
+      <button class="btn small block" id="bellCloseBtn" type="button">Close</button>
+    </div>
+
+    <!-- ============ Toasts ============ -->
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+
+    <script src="app.js"></script>
+
+  </body>
+</html>

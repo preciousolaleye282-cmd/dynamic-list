@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>UITEST</title>
+  </head>
+  <body>
+    <iframe id="app" src="index.html" style="width: 1500px; height: 950px"></iframe>
+    <pre id="log">running…</pre>
+
+    <script>
+      // Temporary black-box UI test — drives the real DOM inside the iframe.
+      const log = [];
+      const errors = [];
+      let tested = 0;
+
+      function check(name, condition, extra) {
+        tested += 1;
+        log.push(`${condition ? "PASS" : "FAIL"}  ${name}${extra ? "  [" + extra + "]" : ""}`);
+      }
+
+      function fire(win, element, type) {
+        element.dispatchEvent(new win.Event(type, { bubbles: true, cancelable: true }));
+      }
+
+      const rows = (doc, view) =>
+        doc.querySelectorAll(`[data-view-panel="${view || "dashboard"}"] [data-task-list] li.task`);
+      const scoped = (doc, selector, view) =>
+        doc.querySelectorAll(`[data-view-panel="${view || "dashboard"}"] ${selector}`);
+      const text = (doc, id) => doc.querySelector(id).textContent.trim();
+
+      document.getElementById("app").addEventListener("load", () => {
+        const frame = document.getElementById("app");
+        const win = frame.contentWindow;
+        const doc = frame.contentDocument;
+
+        win.addEventListener("error", (event) => errors.push(String(event.message)));
+        win.addEventListener("unhandledrejection", (event) =>
+          errors.push("rejection: " + event.reason)
+        );
+
+        try {
+          // ---- fixtures -------------------------------------------------
+          // The app ships with an empty board, so the suite creates its own data.
+          const isoDay = (offset) => win.isoOf(win.dayShift(new Date(), offset));
+          const quiet = true;
+          win.addTask({ title: "Fixture due today (high)", priority: "high",
+            difficulty: "difficult", category: "Work", due: isoDay(0), time: "01:00" }, quiet);
+          win.addTask({ title: "Fixture due today (medium)", priority: "medium",
+            category: "Personal", due: isoDay(0) }, quiet);
+          win.addTask({ title: "Fixture overdue", priority: "low",
+            category: "Work", due: isoDay(-1) }, quiet);
+          win.addTask({ title: "Fixture upcoming", priority: "medium",
+            category: "Study", due: isoDay(2) }, quiet);
+          win.addTask({ title: "Fixture without a date", priority: "low",
+            category: "Misc" }, quiet);
+          win.addTask({ title: "Fixture completed today", done: true,
+            completedAt: new Date().toISOString(), due: isoDay(0), category: "Work" }, quiet);
+          win.addTask({ title: "Fixture completed earlier", done: true,
+            completedAt: isoDay(-3), due: isoDay(-3), category: "Work" }, quiet);
+          win.addNote("Fixture note", "fixture body for the pin test");
+          win.saveNoteWidget("fixture dashboard note");
+
+          // ---- initial render -------------------------------------------
+          check("task rows rendered", rows(doc).length > 0, rows(doc).length + " rows");
+          check("stats filled", text(doc, "#statTotal") !== "0", "#statTotal=" + text(doc, "#statTotal"));
+          check("calendar rendered", doc.querySelectorAll("[data-cal-day]").length === 84);
+          check("view panels rendered", doc.querySelectorAll("[data-view-panel]").length === 7);
+          check("clock ticking", /^\d\d$/.test(text(doc, "#clockH")), text(doc, "#clockH"));
+          check("progress ring filled", text(doc, "#todayPct").includes("%"), text(doc, "#todayPct"));
+          check("done list rendered", doc.querySelectorAll(".done-row").length > 0,
+            doc.querySelectorAll(".done-row").length + " done rows");
+          check("breakdown rendered", doc.querySelectorAll("#breakdown .file-row").length === 7);
+          check("week list rendered", doc.querySelectorAll("#weekList .done-row").length > 0);
+          check("note widget prefilled", text(doc, "#noteBox").length > 0);
+          check("report generated", text(doc, "#reportOut").includes("DYNAMIC LIST"));
+
+          // ---- checkbox toggle + reopen -----------------------------------
+          const doneBefore = Number(text(doc, "#statDone"));
+          const firstRow = rows(doc)[0];
+          const firstId = firstRow.dataset.id;
+          firstRow.querySelector('input[data-action="toggle"]').click();
+          check("checkbox completes a task", Number(text(doc, "#statDone")) === doneBefore + 1,
+            `${doneBefore} -> ${text(doc, "#statDone")}`);
+          check("completed task leaves the open list",
+            !Array.from(rows(doc)).some((li) => li.dataset.id === firstId));
+          const reopen = doc.querySelector(`[data-done-list] [data-action="reopen"][data-id="${firstId}"]`);
+          check("completed row offers a reopen button", Boolean(reopen));
+          if (reopen) reopen.click();
+          check("reopen restores the task", Number(text(doc, "#statDone")) === doneBefore,
+            text(doc, "#statDone"));
+          check("reopened task is back in the open list",
+            Array.from(rows(doc)).some((li) => li.dataset.id === firstId));
+
+          // ---- quick add ----------------------------------------------------
+          const quick = doc.querySelector("#quickInput");
+          quick.value = "Selftest quick task";
+          fire(win, doc.querySelector("#addForm"), "submit");
+          check("quick add creates a task", doc.body.textContent.includes("Selftest quick task"));
+          check("quick input cleared", quick.value === "");
+          check("total task count grew", text(doc, "#taskCount") !== "0 tasks", text(doc, "#taskCount"));
+
+          // ---- live search ----------------------------------------------------
+          const search = doc.querySelector("#searchInput");
+          search.value = "Selftest quick";
+          fire(win, search, "input");
+          check("search filters the list", rows(doc).length === 1, rows(doc).length + " rows");
+          check("search matches the right title", rows(doc)[0].textContent.includes("Selftest quick task"));
+          search.value = "zzz-nothing";
+          fire(win, search, "input");
+          check("empty result shows the empty state",
+            rows(doc).length === 0 &&
+              !scoped(doc, "[data-empty-state]")[0].classList.contains("hidden"));
+          search.value = "";
+          fire(win, search, "input");
+          check("clearing the search restores rows", rows(doc).length > 1, rows(doc).length + " rows");
+
+          // ---- chips, tabs, sort, category -------------------------------------
+          doc.querySelector('[data-chip="high"]').click();
+          check("priority chip activates",
+            doc.querySelector('[data-chip="high"]').classList.contains("active"));
+          const priorities = Array.from(scoped(doc, "li.task .tag")).map((el) => el.textContent);
+          check("chip filters to high priority only",
+            priorities.length > 0 &&
+              priorities.filter((p) => p.includes("priority")).every((p) => p.startsWith("High")),
+            priorities.filter((p) => p.includes("priority")).join(","));
+          doc.querySelector('[data-chip="all"]').click();
+          check("all chip clears the filter",
+            doc.querySelector('[data-chip="all"]').classList.contains("active"));
+
+          doc.querySelector('[data-tab="overdue"]').click();
+          const statuses = Array.from(scoped(doc, "li.task .status")).map((el) => el.textContent.trim());
+          check("overdue tab lists only late tasks",
+            statuses.length > 0 && statuses.every((s) => s === "Late"), statuses.join(","));
+          doc.querySelector('[data-tab="completed"]').click();
+          check("completed tab lists completed rows",
+            rows(doc).length > 0 && Array.from(rows(doc)).every((li) => li.classList.contains("done")),
+            rows(doc).length + " rows");
+          doc.querySelector('[data-tab="inbox"]').click();
+
+          const sort = doc.querySelector("#sortSelect");
+          sort.value = "priority";
+          fire(win, sort, "change");
+          check("sort by priority puts High first",
+            rows(doc)[0].querySelector(".tag").textContent.startsWith("High"),
+            rows(doc)[0].querySelector(".tag").textContent);
+          sort.value = "az";
+          fire(win, sort, "change");
+          const titles = Array.from(scoped(doc, "li.task .task-title")).map((el) => el.textContent);
+          check("sort A-Z orders titles",
+            titles.join("|") === titles.slice().sort((a, b) => a.localeCompare(b)).join("|"),
+            titles.slice(0, 3).join(","));
+          sort.value = "manual";
+          fire(win, sort, "change");
+
+          const cat = doc.querySelector("#catFilter");
+          cat.value = "Work";
+          fire(win, cat, "change");
+          const cats = Array.from(scoped(doc, "li.task .tag.plain")).map((el) => el.textContent.trim());
+          check("category filter applies to every row", cats.length > 0 && cats.every((c) => c === "Work"),
+            cats.slice(0, 3).join(","));
+          cat.value = "all";
+          fire(win, cat, "change");
+
+          // ---- calendar widget --------------------------------------------------
+          const day = doc.querySelectorAll("[data-cal-day]")[20];
+          day.click();
+          check("calendar day selects and highlights",
+            Boolean(doc.querySelector(".cal-day.selected")));
+          check("calendar hint explains the filter",
+            text(doc, "#calHint").startsWith("Filtering for"), text(doc, "#calHint"));
+          check("calendar filter narrows the list",
+            Array.from(doc.querySelectorAll("li.task .task-title")).length >= 0);
+          doc.querySelector(".cal-day.selected").click();
+          check("second click clears the day filter", !doc.querySelector(".cal-day.selected"));
+
+          const titleBefore = text(doc, "#calTitle");
+          doc.querySelector('.cal-nav [data-cal-nav="1"]').click();
+          check("next month changes the title", text(doc, "#calTitle") !== titleBefore,
+            titleBefore + " -> " + text(doc, "#calTitle"));
+          doc.querySelector("#goTodayBtn").click();
+          check("goToday returns to the current month", text(doc, "#calTitle") === titleBefore);
+
+          // ---- view switching ----------------------------------------------------
+          ["tasks", "calendar", "activity", "notes", "files", "settings", "dashboard"].forEach((view) => {
+            doc.querySelector(`.side-nav [data-view="${view}"]`).click();
+            const panel = doc.querySelector(`[data-view-panel="${view}"]`);
+            const crumb = text(doc, "#crumbView");
+            const active = doc.querySelector(".side-nav .side-link.active");
+            check(`view "${view}" shows`, !panel.classList.contains("hidden") &&
+              active && active.dataset.view === view && crumb.length > 0, crumb);
+          });
+
+          // ---- modal: add, edit, row click, delete + undo --------------------------
+          doc.querySelector("#newTaskBtn").click();
+          check("modal opens", doc.querySelector("#taskModal").classList.contains("open"));
+          doc.querySelector("#fTitle").value = "Selftest modal task";
+          doc.querySelector("#fPriority").value = "high";
+          doc.querySelector("#fDifficulty").value = "difficult";
+          doc.querySelector("#fCategory").value = "Study";
+          doc.querySelector("#fNotes").value = "created by the automated test";
+          doc.querySelector("#fDue").value = win.todayISO();
+          doc.querySelector("#fTime").value = "07:15";
+          fire(win, doc.querySelector("#taskForm"), "submit");
+          const createdRow = Array.from(rows(doc)).find((li) =>
+            li.textContent.includes("Selftest modal task"));
+          check("modal submit creates the task", Boolean(createdRow));
+          check("modal closes after submit",
+            !doc.querySelector("#taskModal").classList.contains("open"));
+          check("new task shows priority, difficulty and category tags",
+            createdRow && createdRow.textContent.includes("High priority") &&
+              createdRow.textContent.includes("Difficult") &&
+              createdRow.textContent.includes("Study"));
+          check("new task shows the due date and time",
+            createdRow && createdRow.querySelector(".due").textContent.includes("07:15"),
+            createdRow ? createdRow.querySelector(".due").textContent : "no row");
+
+          createdRow.querySelector('[data-action="edit"]').click();
+          check("edit prefills the modal", doc.querySelector("#fTitle").value === "Selftest modal task",
+            doc.querySelector("#fTitle").value);
+          doc.querySelector("#fTitle").value = "Selftest modal task renamed";
+          fire(win, doc.querySelector("#taskForm"), "submit");
+          check("edit saves the new title",
+            Array.from(rows(doc)).some((li) => li.textContent.includes("Selftest modal task renamed")));
+
+          const rowToDelete = Array.from(rows(doc)).find((li) =>
+            li.textContent.includes("Selftest modal task renamed"));
+          rowToDelete.querySelector('[data-action="delete"]').click();
+          check("delete removes the row",
+            !Array.from(rows(doc)).some((li) => li.textContent.includes("Selftest modal task renamed")),
+            rows(doc).length + " rows left");
+          const undoBtn = doc.querySelector("#toasts .toast button");
+          check("undo button offered", Boolean(undoBtn));
+          if (undoBtn) undoBtn.click();
+          check("undo restores the deleted task",
+            Array.from(rows(doc)).some((li) => li.textContent.includes("Selftest modal task renamed")));
+
+          // ---- row click opens the editor -------------------------------------------
+          const reopenRow = Array.from(scoped(doc, "li.task .task-title")).find(
+            (el) => el.textContent === "Selftest modal task renamed");
+          reopenRow.click();
+          check("clicking the row body opens the editor",
+            doc.querySelector("#taskModal").classList.contains("open") &&
+              doc.querySelector("#fTitle").value === "Selftest modal task renamed",
+            doc.querySelector("#fTitle").value);
+          doc.querySelector("#modalCloseBtn").click();
+          check("close button closes the modal",
+            !doc.querySelector("#taskModal").classList.contains("open"));
+
+          // ---- notes view --------------------------------------------------------------
+          doc.querySelector('.side-nav [data-view="notes"]').click();
+          const notesBefore = doc.querySelectorAll(".note-card").length;
+          doc.querySelector("#noteTitle").value = "Selftest note";
+          doc.querySelector("#noteBody").value = "note body from the automated test";
+          fire(win, doc.querySelector("#noteForm"), "submit");
+          check("note saved and listed", doc.querySelectorAll(".note-card").length === notesBefore + 1,
+            doc.querySelectorAll(".note-card").length + " notes");
+
+          const noteSearch = doc.querySelector("#noteSearch");
+          noteSearch.value = "Selftest note";
+          fire(win, noteSearch, "input");
+          check("note search filters", doc.querySelectorAll(".note-card").length === 1);
+          noteSearch.value = "";
+          fire(win, noteSearch, "input");
+
+          doc.querySelector('[data-action="pin-note"]').click();
+          check("pin note copies it into the dashboard note",
+            text(doc, "#noteBox").includes("note body from the automated test"));
+
+          doc.querySelector('[data-action="delete-note"]').click();
+          check("note deleted", doc.querySelectorAll(".note-card").length === notesBefore);
+
+          // ---- dashboard today note ------------------------------------------------------
+          doc.querySelector('.side-nav [data-view="dashboard"]').click();
+          const noteBox = doc.querySelector("#noteBox");
+          noteBox.textContent = "selftest dashboard note";
+          doc.querySelector("#noteSaveBtn").click();
+          check("today note saved with a timestamp",
+            text(doc, "#noteTime").startsWith("Saved"), text(doc, "#noteTime"));
+          check("today note survives a re-render",
+            text(doc, "#noteBox").includes("selftest dashboard note"));
+
+          // ---- bell popover ----------------------------------------------------------------
+          doc.querySelector("#bellBtn").click();
+          check("bell popover opens", !doc.querySelector("#bellPanel").classList.contains("hidden"));
+          check("bell lists reminders", doc.querySelectorAll("#bellItems .popover-item").length > 0);
+          doc.querySelector("#bellCloseBtn").click();
+          check("bell popover closes", doc.querySelector("#bellPanel").classList.contains("hidden"));
+
+          // ---- files view ------------------------------------------------------
+          doc.querySelector('.side-nav [data-view="files"]').click();
+          check("attach select lists open tasks",
+            doc.querySelectorAll("#attachTaskSelect option").length > 1,
+            doc.querySelectorAll("#attachTaskSelect option").length + " options");
+          check("files empty state shows",
+            !doc.querySelector("#filesEmpty").classList.contains("hidden"));
+
+          // ---- settings ---------------------------------------------------------
+          doc.querySelector('.side-nav [data-view="settings"]').click();
+          doc.querySelector("#themeSwitch").click();
+          check("theme switches to light", doc.documentElement.dataset.theme === "light");
+          doc.querySelector("#themeSwitch").click();
+          check("theme switches back to dark", doc.documentElement.dataset.theme === "dark");
+
+          doc.querySelector('[data-accent="violet"]').click();
+          check("accent colour applies", doc.documentElement.dataset.accent === "violet");
+          doc.querySelector('[data-accent="blue"]').click();
+
+          doc.querySelector("#densitySwitch").click();
+          check("density toggles to compact", doc.documentElement.dataset.density === "compact");
+          doc.querySelector("#densitySwitch").click();
+          check("density back to comfortable", doc.documentElement.dataset.density === "comfortable");
+          check("storage size reported", /KB|MB/.test(text(doc, "#storageSize")), text(doc, "#storageSize"));
+
+          // ---- clear completed ------------------------------------------------------
+          doc.querySelector('.side-nav [data-view="dashboard"]').click();
+          const doneRows = doc.querySelectorAll("[data-done-list] .done-row").length;
+          doc.querySelector("#clearDoneBtn").click();
+          check("clear completed empties the done panel",
+            doc.querySelectorAll("[data-done-list] .done-row").length === 0, doneRows + " removed");
+          check("completed stat resets", text(doc, "#statDone") === "0", text(doc, "#statDone"));
+          const clearUndo = doc.querySelector("#toasts .toast button");
+          if (clearUndo) clearUndo.click();
+          check("clear completed is undoable",
+            doc.querySelectorAll("[data-done-list] .done-row").length === doneRows,
+            doc.querySelectorAll("[data-done-list] .done-row").length + " rows");
+
+          // ---- reports and charts ------------------------------------------------------
+          doc.querySelector('.side-nav [data-view="activity"]').click();
+          check("weekly chart has 7 bars", doc.querySelectorAll("#miniChart .bar-col").length === 7);
+          check("monthly chart has 6 bars", doc.querySelectorAll("#bigChart .bar-col").length === 6);
+          check("activity stats filled", text(doc, "#actWeek") !== "" && text(doc, "#actAvg") !== "",
+            `week=${text(doc, "#actWeek")} avg=${text(doc, "#actAvg")}`);
+          check("report lists sections",
+            text(doc, "#reportOut").includes("TOP OPEN TASKS") &&
+              text(doc, "#reportOut").includes("OVERDUE"));
+
+          // ---- drag & drop reordering (on the visible Tasks view) -------------------------
+          doc.querySelector('.side-nav [data-view="tasks"]').click();
+          const before = Array.from(rows(doc, "tasks")).map((li) => li.dataset.id);
+          check("enough rows for the drag test", before.length >= 3, before.length + " rows");
+          if (before.length >= 3) {
+            const first = rows(doc, "tasks")[0];
+            const target = rows(doc, "tasks")[2];
+            const targetId = target.dataset.id;
+            fire(win, first, "dragstart");
+            check("dragged row flagged", first.classList.contains("dragging"));
+            target.dispatchEvent(new win.Event("dragover", { bubbles: true, cancelable: true }));
+            check("drop target highlighted", target.classList.contains("drop-target"));
+            target.dispatchEvent(new win.Event("drop", { bubbles: true, cancelable: true }));
+            const after = Array.from(rows(doc, "tasks")).map((li) => li.dataset.id);
+            check("drag & drop reorders the list",
+              after[0] !== before[0] && after.indexOf(before[0]) === after.indexOf(targetId) - 1,
+              `${before.slice(0, 4).join(",")} -> ${after.slice(0, 4).join(",")}`);
+            check("dragging styles cleared", !doc.querySelector(".dragging, .drop-target"));
+            check("manual sort is selected after a drag",
+              doc.querySelector("#sortSelect").value === "manual");
+          }
+
+          // ---- reset + demo reload ----------------------------------------------------------
+          doc.querySelector('.side-nav [data-view="settings"]').click();
+          doc.querySelector("#resetBtn").click();
+          check("reset empties the board",
+            rows(doc).length === 0 && text(doc, "#statTotal") === "0", text(doc, "#statTotal"));
+          const resetUndo = doc.querySelector("#toasts .toast button");
+          if (resetUndo) resetUndo.click();
+          check("reset is undoable", text(doc, "#statTotal") !== "0", text(doc, "#statTotal"));
+
+          doc.querySelector("#resetBtn").click();
+          check("board can be emptied and stays empty",
+            text(doc, "#statTotal") === "0" && rows(doc).length === 0);
+          check("empty state is shown when there is nothing to do",
+            !scoped(doc, "[data-empty-state]")[0].classList.contains("hidden"));
+
+          // ---- persistence --------------------------------------------------------------------
+          const stored = win.localStorage.getItem("dynamic-list-v1");
+          check("localStorage persisted", Boolean(stored));
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            check("stored task count matches the board",
+              String(parsed.tasks.length) === text(doc, "#statTotal"), parsed.tasks.length + " stored");
+            check("settings persisted", Boolean(parsed.settings && parsed.settings.theme));
+          }
+
+          // ---- keyboard shortcuts ----------------------------------------------------------------
+          doc.body.dispatchEvent(new win.KeyboardEvent("keydown", { key: "n", bubbles: true }));
+          check("keyboard 'n' opens the new-task modal",
+            doc.querySelector("#taskModal").classList.contains("open"));
+          doc.body.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+          check("Escape closes the modal",
+            !doc.querySelector("#taskModal").classList.contains("open"));
+
+          doc.body.dispatchEvent(new win.KeyboardEvent("keydown", { key: "4", bubbles: true }));
+          check("number keys switch views",
+            !doc.querySelector('[data-view-panel="activity"]').classList.contains("hidden"));
+          doc.body.dispatchEvent(new win.KeyboardEvent("keydown", { key: "1", bubbles: true }));
+          check("number key returns to the dashboard",
+            !doc.querySelector('[data-view-panel="dashboard"]').classList.contains("hidden"));
+        } catch (error) {
+          errors.push("EXCEPTION: " + error.message + "\n" + (error.stack || ""));
+        }
+
+        const failed = log.filter((line) => line.startsWith("FAIL")).length;
+        document.getElementById("log").textContent = [
+          `TESTED: ${tested}`,
+          `FAILED: ${failed}`,
+          `JS ERRORS: ${errors.length}`,
+          "",
+          errors.join("\n"),
+          "",
+          log.join("\n"),
+        ].join("\n");
+        document.title = `${failed} failures / ${errors.length} errors`;
+      });
+    </script>
+  </body>
+</html>

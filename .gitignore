@@ -1,0 +1,33 @@
+# ---- Operating system cruft ----
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# ---- Editors / IDEs ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ---- Logs and temporary files ----
+*.log
+npm-debug.log*
+*.tmp
+*.bak
+
+# ---- Local environment / secrets ----
+.env
+.env.local
+*.pem
+*.key
+
+# ---- Python (only if you add tooling later) ----
+__pycache__/
+*.py[cod]
+
+# ---- Node (only if you add tooling later) ----
+node_modules/
+dist/
+build/
